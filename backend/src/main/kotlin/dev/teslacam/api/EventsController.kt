@@ -39,9 +39,9 @@ class EventsController(private val index: EventIndexService) {
     }
 
     @PostMapping("/refresh")
-    fun refresh(): Map<String, String> {
-        index.refresh()
-        return mapOf("status" to "refreshed")
+    fun refresh(): Map<String, Int> {
+        val newIndex = index.refresh()
+        return EventScanner.CATEGORIES.associateWith { category -> newIndex[category]?.size ?: 0 }
     }
 
     private fun EventSummary.toDto() = EventSummaryDto(

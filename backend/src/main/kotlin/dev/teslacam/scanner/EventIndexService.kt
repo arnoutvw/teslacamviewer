@@ -13,16 +13,17 @@ class EventIndexService(private val scanner: EventScanner) {
     private val index = AtomicReference<Map<String, List<EventSummary>>>(emptyMap())
 
     @PostConstruct
-    fun refresh() {
+    fun refresh(): Map<String, List<EventSummary>> {
         try {
             index.set(scanner.scan())
         } catch (e: Exception) {
             log.warn("rescan failed, keeping previous index: {}", e.message)
         }
+        return index.get()
     }
 
     @Scheduled(fixedDelay = 30_000)
-    fun scheduledRefresh() = refresh()
+    fun scheduledRefresh() { refresh() }
 
     fun list(category: String): List<EventSummary>? {
         if (category !in EventScanner.CATEGORIES) return null

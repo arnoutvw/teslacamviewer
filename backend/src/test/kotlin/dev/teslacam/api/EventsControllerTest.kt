@@ -45,7 +45,7 @@ class EventsControllerTest {
         every { service.list("SavedClips") } returns emptyList()
         every { service.list("HackedClips") } returns null
         every { service.detail(any(), any()) } returns null
-        every { service.refresh() } returns Unit
+        every { service.refresh() } returns mapOf("SentryClips" to listOf(sample))
     }
 
     @Test
@@ -93,8 +93,20 @@ class EventsControllerTest {
 
     @Test
     fun `refresh endpoint returns ok`() {
+        mvc.perform(post("/api/refresh")).andExpect(status().isOk)
+    }
+
+    @Test
+    fun `refresh returns new index stats`() {
+        every { service.refresh() } returns mapOf(
+            "RecentClips" to emptyList(),
+            "SavedClips" to listOf(sample),
+            "SentryClips" to listOf(sample, sample),
+        )
         mvc.perform(post("/api/refresh"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.status").value("refreshed"))
+            .andExpect(jsonPath("$.RecentClips").value(0))
+            .andExpect(jsonPath("$.SavedClips").value(1))
+            .andExpect(jsonPath("$.SentryClips").value(2))
     }
 }
