@@ -112,6 +112,40 @@ class EventScannerTest {
         assertNull(scanner().detail("HackedClips", "2020-01-01_00-00-00"))
     }
 
+    @Test
+    fun `folder without segments is not an event`() {
+        val thumbsOnly = root.resolve("SavedClips").resolve("2019-01-01_00-00-00")
+        Files.createDirectories(thumbsOnly)
+        Files.write(thumbsOnly.resolve("thumb.png"), ByteArray(10))
+        Files.writeString(thumbsOnly.resolve("event.json"), """{"timestamp":"2019-01-01T00:00:00"}""")
+        segment("SavedClips", "2026-05-27_21-07-35", "2026-05-27_21-02-22-front.mp4")
+
+        val saved = scanner().scan()["SavedClips"]!!
+
+        assertEquals(1, saved.size)
+        assertEquals("2026-05-27_21-07-35", saved[0].folder)
+    }
+
+    @Test
+    fun `corrupt event json yields null metadata`() {
+        segment("SavedClips", "2026-05-27_21-07-35", "2026-05-27_21-02-22-front.mp4")
+        json("SavedClips", "2026-05-27_21-07-35", "not json at all {{{")
+        val e = scanner().scan()["SavedClips"]!![0]
+        assertNull(e.metadata)
+        assertEquals("2026-05-27_21-07-35", e.folder)
+        assertEquals(1, e.segmentCount)
+    }
+
+    @Test
+    fun `camera index outside order yields null camera name`() {
+        segment("SentryClips", "2026-07-10_17-21-39", "2026-07-10_17-19-23-front.mp4")
+        json("SentryClips", "2026-07-10_17-21-39",
+            """{"timestamp":"2026-07-10T17:20:19","camera":"9"}""")
+        val e = scanner().scan()["SentryClips"]!![0]
+        assertNotNull(e.metadata)
+        assertNull(e.cameraName)
+    }
+
     private fun EventSummary.city() = metadata?.city
     private fun EventSummary.street() = metadata?.street
     private fun EventSummary.reason() = metadata?.reason

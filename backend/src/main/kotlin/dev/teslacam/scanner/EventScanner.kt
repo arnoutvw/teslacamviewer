@@ -56,6 +56,8 @@ class EventScanner(
         return Files.list(dir).use { stream ->
             stream.filter { Files.isDirectory(it) }
                 .map { folder -> summarize(category, folder) }
+                // Spec: "Event = folder containing at least one .mp4" — drop empty/thumbnail-only folders.
+                .filter { it.segmentCount > 0 }
                 .toList()
                 .sortedBy { it.folderTimestamp }
         }
