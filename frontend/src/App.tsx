@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Box from '@mui/material/Box'
 import EventList from './views/EventList'
+import Player from './views/Player'
 import type { Category } from './api/client'
 
 export default function App() {
@@ -10,10 +11,11 @@ export default function App() {
       {selected == null ? (
         <EventList onOpen={(category, folder) => setSelected({ category, folder })} />
       ) : (
-        // Task 5 replaces this placeholder with the Player.
-        <Box sx={{ p: 2 }} data-testid="player-placeholder">
-          {selected.category}/{selected.folder}
-        </Box>
+        <Player
+          category={selected.category}
+          folder={selected.folder}
+          onBack={() => setSelected(null)}
+        />
       )}
     </Box>
   )
