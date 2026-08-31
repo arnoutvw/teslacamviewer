@@ -34,7 +34,9 @@ class EventMetadataParser {
     private fun allNulls() = EventMetadata(null, null, null, null, null, null, null)
 
     private fun nullableText(n: JsonNode, field: String): String? {
-        val v = n.get(field)?.asText()?.trim()
+        val node = n.get(field) ?: return null
+        if (node.isNull) return null
+        val v = node.asText()?.trim()
         return v?.takeIf { it.isNotEmpty() }
     }
 

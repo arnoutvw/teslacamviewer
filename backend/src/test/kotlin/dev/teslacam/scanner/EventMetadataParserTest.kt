@@ -38,6 +38,15 @@ class EventMetadataParserTest {
     }
 
     @Test
+    fun `explicit json nulls parse to kotlin nulls`() {
+        val m = parser.parse(
+            """ {"timestamp":null,"city":null,"street":null,"est_lat":null,"est_lon":null,"reason":null,"camera":null} """,
+        )
+        assertNull(m.timestamp); assertNull(m.city); assertNull(m.street)
+        assertNull(m.lat); assertNull(m.lon); assertNull(m.reason); assertNull(m.cameraIndex)
+    }
+
+    @Test
     fun `returns all nulls for empty object`() {
         val m = parser.parse("{ }")
         assertNull(m.timestamp)
