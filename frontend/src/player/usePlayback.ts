@@ -32,6 +32,11 @@ export interface PlaybackState {
   bindCamera(camera: string): (el: HTMLVideoElement | null) => void
 }
 
+/** Change signature per camera: segment start + rounded offset. */
+function assignmentKey(a: SegmentAssignment | null): string {
+  return a == null ? 'none' : `${a.segment.start}|${Math.round(a.offsetSeconds)}`
+}
+
 export function usePlayback(detail: EventDetailDto | null): PlaybackState {
   const elements = useRef<Record<string, HTMLVideoElement | null>>({})
   /** Segment URL each element is currently loaded with. */
@@ -39,6 +44,10 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
   /** Offset still to seek to once a (re)loaded element's metadata is ready. */
   const pendingOffset = useRef<Record<string, number>>({})
   const position = useRef(0)
+  /** Mirror of `playing` for callbacks registered before the latest render. */
+  const playingRef = useRef(false)
+  /** Last assignment key per camera; guards the per-frame rAF state updates. */
+  const lastKeys = useRef<Record<string, string>>({})
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeedState] = useState(1)
   const [positionMs, setPositionMs] = useState(0)
@@ -62,17 +71,24 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
     setPositionMs(position.current)
     loaded.current = {}
     pendingOffset.current = {}
+    playingRef.current = false
     setPlaying(false)
     setSeeking({})
 
     const next: Record<string, SegmentAssignment | null> = {}
+    const nextKeys: Record<string, string> = {}
     for (const cam of CAMERAS) {
       next[cam] = findSegmentAt(cameraSegments.current[cam] ?? [], position.current)
+      nextKeys[cam] = assignmentKey(next[cam])
       if (next[cam] != null) {
         // Element mounts with this src; the head is parked on 'loadedmetadata'.
         pendingOffset.current[cam] = next[cam]!.offsetSeconds
+        // The initial src comes from JSX, not from apply() — record it so the
+        // master-clock rAF branch can engage on a fresh event.
+        loaded.current[cam] = next[cam]!.segment.url
       }
     }
+    lastKeys.current = nextKeys
     setAssignments(next)
   }, [detail])
 
@@ -117,9 +133,13 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
             setPositionMs(abs)
           }
           const next: Record<string, SegmentAssignment | null> = {}
+          const nextKeys: Record<string, string> = {}
+          let changed = false
           for (const cam of CAMERAS) {
             const target = findSegmentAt(cameraSegments.current[cam] ?? [], abs)
             next[cam] = target
+            nextKeys[cam] = assignmentKey(target)
+            if (nextKeys[cam] !== lastKeys.current[cam]) changed = true
             if (target == null) continue
             if (cam === MASTER || loaded.current[cam] !== target.segment.url) {
               apply(cam, target, true) // swaps src when the clock crossed into the next segment
@@ -133,7 +153,12 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
               setSeeking((s) => (s[cam] ? s : { ...s, [cam]: true }))
             }
           }
-          setAssignments(next)
+          if (changed) {
+            // Skip setState when no camera moved to another segment/offset —
+            // a fresh object every frame would re-render ~60×/s for nothing.
+            lastKeys.current = nextKeys
+            setAssignments(next)
+          }
         }
       }
       raf = requestAnimationFrame(tick)
@@ -142,9 +167,30 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
     return () => cancelAnimationFrame(raf)
   }, [detail, apply, playing])
 
+  const handleLoadedMetadata = useCallback((ev: Event): void => {
+    const cam = (ev.target as HTMLElement).dataset.camera
+    if (cam == null) return
+    const el = elements.current[cam]
+    if (el == null) return
+    const offset = pendingOffset.current[cam]
+    if (offset != null) {
+      el.currentTime = Math.max(0, offset)
+      setSeeking((s) => (s[cam] ? s : { ...s, [cam]: true }))
+      delete pendingOffset.current[cam]
+      if (playingRef.current) void el.play().catch(() => {})
+    }
+  }, [])
+
+  const handleSeeked = useCallback((ev: Event): void => {
+    const cam = (ev.target as HTMLElement).dataset.camera
+    if (cam == null) return
+    setSeeking((s) => (s[cam] ? { ...s, [cam]: false } : s))
+  }, [])
+
   const toggle = useCallback((): void => {
     setPlaying((prev) => {
       const next = !prev
+      playingRef.current = next
       for (const cam of CAMERAS) {
         const el = elements.current[cam]
         if (el == null) continue
@@ -161,11 +207,16 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
       position.current = clamped
       setPositionMs(clamped)
       const next: Record<string, SegmentAssignment | null> = {}
-      for (const cam of CAMERAS) next[cam] = findSegmentAt(cameraSegments.current[cam] ?? [], clamped)
+      const nextKeys: Record<string, string> = {}
+      for (const cam of CAMERAS) {
+        next[cam] = findSegmentAt(cameraSegments.current[cam] ?? [], clamped)
+        nextKeys[cam] = assignmentKey(next[cam])
+      }
+      lastKeys.current = nextKeys
       setAssignments(next)
-      for (const cam of CAMERAS) apply(cam, next[cam], playing) // seek all cameras (spec)
+      for (const cam of CAMERAS) apply(cam, next[cam], playingRef.current) // seek all cameras (spec)
     },
-    [apply, playing],
+    [apply],
   )
 
   const skip = useCallback((deltaSeconds: number): void => seekTo(position.current + deltaSeconds * 1000), [seekTo])
@@ -178,42 +229,20 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
     }
   }, [])
 
+  // Ref callback: listeners attach the moment an element registers and detach
+  // when it goes away — independent of effect re-runs.
   const bindCamera = useCallback((camera: string) => (el: HTMLVideoElement | null): void => {
+    const prev = elements.current[camera]
+    if (prev != null) {
+      prev.removeEventListener('loadedmetadata', handleLoadedMetadata)
+      prev.removeEventListener('seeked', handleSeeked)
+    }
     elements.current[camera] = el
-  }, [])
-
-  // Mounted-element listeners: park the head on load; drop the placeholder on seeked.
-  useEffect(() => {
-    const onLoadedMetadata = (ev: Event): void => {
-      const cam = (ev.target as HTMLElement).dataset.camera
-      if (cam == null) return
-      const el = elements.current[cam]
-      if (el == null) return
-      const offset = pendingOffset.current[cam]
-      if (offset != null) {
-        el.currentTime = Math.max(0, offset)
-        setSeeking((s) => (s[cam] ? s : { ...s, [cam]: true }))
-        delete pendingOffset.current[cam]
-        if (playing) void el.play().catch(() => {})
-      }
+    if (el != null) {
+      el.addEventListener('loadedmetadata', handleLoadedMetadata)
+      el.addEventListener('seeked', handleSeeked)
     }
-    const onSeeked = (ev: Event): void => {
-      const cam = (ev.target as HTMLElement).dataset.camera
-      if (cam == null) return
-      setSeeking((s) => (s[cam] ? { ...s, [cam]: false } : s))
-    }
-    const els = CAMERAS.map((c) => elements.current[c]).filter((x): x is HTMLVideoElement => x != null)
-    for (const el of els) {
-      el.addEventListener('loadedmetadata', onLoadedMetadata)
-      el.addEventListener('seeked', onSeeked)
-    }
-    return () => {
-      for (const el of els) {
-        el.removeEventListener('loadedmetadata', onLoadedMetadata)
-        el.removeEventListener('seeked', onSeeked)
-      }
-    }
-  }, [assignments, playing])
+  }, [handleLoadedMetadata, handleSeeked])
 
   return {
     ready: detail != null,

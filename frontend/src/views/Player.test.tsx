@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Player from './Player'
@@ -56,5 +56,18 @@ describe('Player', () => {
     await screen.findByTestId('tile-front')
     await user.click(screen.getByRole('button', { name: /back to list/i }))
     expect(onBack).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the video element mounted across the seek lifecycle', async () => {
+    render(<Player category="SentryClips" folder="f" onBack={vi.fn()} />)
+    const video = await screen.findByTestId('video-front')
+    // loadedmetadata parks the head and raises the seeking placeholder…
+    act(() => { video.dispatchEvent(new Event('loadedmetadata')) })
+    expect(screen.getByTestId('video-front')).toBe(video) // same DOM node — not unmounted
+    expect(screen.getByText('seeking…')).toBeInTheDocument()
+    // …and seeked on the surviving element clears it.
+    act(() => { video.dispatchEvent(new Event('seeked')) })
+    expect(screen.queryByText('seeking…')).not.toBeInTheDocument()
+    expect(screen.getByTestId('video-front')).toBe(video)
   })
 })

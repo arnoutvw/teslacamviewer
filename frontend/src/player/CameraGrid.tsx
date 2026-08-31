@@ -52,21 +52,29 @@ export default function CameraGrid(p: CameraGridProps): ReactElement {
               cursor: 'pointer',
             }}
           >
-            {usable && !p.seeking[cam] ? (
-              <video
-                data-testid={`video-${cam}`}
-                data-camera={cam}
-                ref={p.bindCamera(cam)}
-                src={target.segment.url}
-                muted
-                playsInline
-                preload="auto"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
+            {usable ? (
+              <>
+                {/* The video must stay mounted across seeks — only the placeholder swaps. */}
+                <video
+                  data-testid={`video-${cam}`}
+                  data-camera={cam}
+                  ref={p.bindCamera(cam)}
+                  src={target.segment.url}
+                  muted
+                  playsInline
+                  preload="auto"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                {p.seeking[cam] && (
+                  <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', bgcolor: '#262626' }}>
+                    <Typography variant="caption" color="text.secondary">seeking…</Typography>
+                  </Box>
+                )}
+              </>
             ) : (
               <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', bgcolor: '#262626' }}>
                 <Typography variant="caption" color="text.secondary">
-                  {usable ? 'seeking…' : 'no footage'}
+                  no footage
                 </Typography>
               </Box>
             )}
