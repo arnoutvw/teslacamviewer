@@ -63,7 +63,7 @@ export default function CameraGrid(p: CameraGridProps): ReactElement {
                   muted
                   playsInline
                   preload="auto"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 />
                 {p.seeking[cam] && (
                   <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', bgcolor: '#262626' }}>
