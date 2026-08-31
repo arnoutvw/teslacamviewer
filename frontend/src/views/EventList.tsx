@@ -50,6 +50,7 @@ function Thumb({ event }: { event: EventSummaryDto }) {
 
 export default function EventList({ onOpen }: { onOpen: (category: Category, folder: string) => void }) {
   const [tab, setTab] = useState<Category>('RecentClips')
+  const [refreshTick, setRefreshTick] = useState(0)
   const [events, setEvents] = useState<EventSummaryDto[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -73,7 +74,7 @@ export default function EventList({ onOpen }: { onOpen: (category: Category, fol
       cancelled = true
       clearInterval(id)
     }
-  }, [tab])
+  }, [tab, refreshTick])
 
   return (
     <Box>
@@ -120,7 +121,7 @@ export default function EventList({ onOpen }: { onOpen: (category: Category, fol
       </List>
       {error != null && (
         <Box sx={{ px: 3 }}>
-          <Button onClick={() => setTab((t) => t)}>Retry</Button>
+          <Button onClick={() => setRefreshTick((t) => t + 1)}>Retry</Button>
         </Box>
       )}
     </Box>

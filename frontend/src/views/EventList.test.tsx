@@ -78,4 +78,14 @@ describe('EventList', () => {
     renderView(<EventList onOpen={vi.fn()} />)
     await waitFor(() => expect(screen.getByRole('button', { name: /2026-07-10 17:20:19/ })).toBeDisabled())
   })
+
+  it('shows an error and refetches on Retry', async () => {
+    mockList.mockRejectedValueOnce(new Error('HTTP 500')).mockResolvedValue([event])
+    const user = userEvent.setup()
+    renderView(<EventList onOpen={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText(/Failed to load events/i)).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(screen.getByText('2026-07-10 17:20:19')).toBeInTheDocument())
+    expect(mockList).toHaveBeenCalledTimes(2)
+  })
 })
