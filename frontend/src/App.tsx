@@ -1,17 +1,20 @@
-import AppBar from '@mui/material/AppBar'
+import { useState } from 'react'
 import Box from '@mui/material/Box'
-import Toolbar from '@mui/material/Toolbar'
-import Typography from '@mui/material/Typography'
+import EventList from './views/EventList'
+import type { Category } from './api/client'
 
 export default function App() {
+  const [selected, setSelected] = useState<{ category: Category; folder: string } | null>(null)
   return (
     <Box sx={{ minHeight: '100vh' }}>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" noWrap>TeslaCamViewer</Typography>
-        </Toolbar>
-      </AppBar>
-      <Box sx={{ p: 2 }} data-testid="app-body" />
+      {selected == null ? (
+        <EventList onOpen={(category, folder) => setSelected({ category, folder })} />
+      ) : (
+        // Task 5 replaces this placeholder with the Player.
+        <Box sx={{ p: 2 }} data-testid="player-placeholder">
+          {selected.category}/{selected.folder}
+        </Box>
+      )}
     </Box>
   )
 }
