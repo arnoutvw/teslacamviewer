@@ -8,12 +8,19 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 
-// Leaflet's Icon.Default resolves marker PNGs relative to the CSS URL, which
-// Vite's bundling breaks — wire the bundled images in explicitly.
-L.Icon.Default.mergeOptions({
+// Leaflet's Icon.Default resolves marker PNGs by concatenating a CSS-detected
+// imagePath onto the icon URL — under Vite (inlined leaflet.css) that
+// concatenation produces an invalid data:URL soup. Bypass Icon.Default with an
+// explicit bundled icon.
+const eventIcon = L.icon({
   iconUrl: markerIcon,
   iconRetinaUrl: markerIcon2x,
   shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+  shadowAnchor: [12, 41],
 })
 
 export function EventMap({ lat, lon, label }: { lat: number | null; lon: number | null; label: Array<string | null> }): ReactElement | null {
@@ -26,7 +33,7 @@ export function EventMap({ lat, lon, label }: { lat: number | null; lon: number 
       attribution: '© OpenStreetMap contributors',
       maxZoom: 19,
     }).addTo(map)
-    L.marker([lat, lon]).addTo(map)
+    L.marker([lat, lon], { icon: eventIcon }).addTo(map)
     return () => { map.remove() }
   }, [lat, lon])
 
