@@ -44,7 +44,7 @@ export function Controls(p: ControlsProps): ReactElement {
             data-testid="event-dot"
             style={{ left: `${pct}%` }}
             sx={{
-              position: 'absolute', top: '50%',
+              position: 'absolute', top: 'calc(50% - 2px)',
               width: 14, height: 14, borderRadius: '50%',
               bgcolor: 'error.main', border: '2px solid #fff',
               boxShadow: '0 0 4px rgba(0,0,0,0.6)',
