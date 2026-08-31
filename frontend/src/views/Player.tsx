@@ -18,6 +18,7 @@ export default function Player({ category, folder, onBack }: { category: Categor
   const [detail, setDetail] = useState<EventDetailDto | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [swapped, setSwapped] = useState<string | null>(null)
   const [zoomed, setZoomed] = useState<string | null>(null)
   const [retryTick, setRetryTick] = useState(0)
   const pb = usePlayback(detail)
@@ -25,6 +26,8 @@ export default function Player({ category, folder, onBack }: { category: Categor
   useEffect(() => {
     let cancelled = false
     setDetail(null)
+    setSwapped(null)
+    setZoomed(null)
     setLoading(true)
     setError(null)
     getEventDetail(category, folder)
@@ -70,8 +73,10 @@ export default function Player({ category, folder, onBack }: { category: Categor
           assignments={pb.assignments}
           seeking={pb.seeking}
           eventCamera={detail.summary.camera}
+          swapped={swapped}
           zoomed={zoomed}
-          onToggleZoom={(cam) => setZoomed((z) => (z === cam ? null : cam))}
+          onSwap={(cam) => setSwapped((s) => (s === cam ? null : cam))}
+          onZoom={(cam) => setZoomed((z) => (z === cam ? null : cam))}
           bindCamera={pb.bindCamera}
         />
       </Box>

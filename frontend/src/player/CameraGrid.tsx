@@ -8,8 +8,12 @@ export interface CameraGridProps {
   assignments: Record<string, SegmentAssignment | null>
   seeking: Record<string, boolean>
   eventCamera: string | null
+  /** Camera temporarily occupying the large main slot (null = front sits there). */
+  swapped: string | null
+  /** Camera shown true-fullscreen (null = six-up grid). */
   zoomed: string | null
-  onToggleZoom(camera: string): void
+  onSwap(camera: string): void
+  onZoom(camera: string): void
   bindCamera(camera: string): (el: HTMLVideoElement | null) => void
 }
 
@@ -21,13 +25,22 @@ const AREAS = [
 ].join(' ')
 
 export default function CameraGrid(p: CameraGridProps): ReactElement {
+  // Which grid area a camera occupies. In 6-up mode a non-main tap swaps the
+  // tapped camera with whatever currently sits in the main slot.
+  const slotOf = (cam: string): string => {
+    if (p.zoomed != null) return 'zoom'
+    if (p.swapped == null) return cam
+    if (cam === p.swapped) return 'front'
+    if (cam === 'front') return p.swapped
+    return cam
+  }
   const cameras = p.zoomed != null ? [p.zoomed] : CAMERAS
   return (
     <Box
       sx={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gridTemplateRows: 'repeat(3, 1fr)',
+        gridTemplateColumns: p.zoomed != null ? '1fr' : 'repeat(3, 1fr)',
+        gridTemplateRows: p.zoomed != null ? '1fr' : 'repeat(3, 1fr)',
         gridTemplateAreas: p.zoomed != null ? "'zoom'" : AREAS,
         gap: 0.5,
         height: '100%',
@@ -41,9 +54,10 @@ export default function CameraGrid(p: CameraGridProps): ReactElement {
           <Box
             key={cam}
             data-testid={`tile-${cam}`}
-            onClick={() => p.onToggleZoom(cam)}
+            onClick={p.zoomed != null ? () => p.onZoom(cam) : () => p.onSwap(cam)}
+            onDoubleClick={p.zoomed != null ? undefined : () => p.onZoom(cam)}
             sx={{
-              gridArea: p.zoomed != null ? 'zoom' : cam,
+              gridArea: slotOf(cam),
               position: 'relative',
               overflow: 'hidden',
               bgcolor: '#000',
