@@ -108,7 +108,9 @@ class EventScanner(
                         start = seg.start,
                         url = "/media/$category/$folder/${seg.file.fileName}",
                         playable = seg.bytes > 0,
-                        estimatedSeconds = maxOf(1.0, seg.bytes / BYTES_PER_SECOND),
+                        // Prefer the real mp4 duration; the size-based estimate has
+                        // proven ~2x off for Tesla's smaller-camera bitrates.
+                        estimatedSeconds = maxOf(1.0, seg.durationSeconds ?: seg.bytes / BYTES_PER_SECOND),
                     )
                 }
             }
