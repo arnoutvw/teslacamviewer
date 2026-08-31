@@ -92,6 +92,18 @@ export default function CameraGrid(p: CameraGridProps): ReactElement {
                 </Typography>
               </Box>
             )}
+            {/* Camera label — swap and seek both move feeds between unlabeled tiles. */}
+            <Typography
+              variant="caption"
+              sx={{
+                position: 'absolute', left: 8, bottom: 4,
+                px: 0.75, py: 0.1, borderRadius: 0.5,
+                bgcolor: 'rgba(0,0,0,0.55)', color: 'rgba(255,255,255,0.85)',
+                pointerEvents: 'none', userSelect: 'none',
+              }}
+            >
+              {cam}
+            </Typography>
           </Box>
         )
       })}
