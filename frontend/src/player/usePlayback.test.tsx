@@ -85,4 +85,26 @@ describe('usePlayback', () => {
     const bind = latest!.bindCamera('front')
     expect(typeof bind).toBe('function')
   })
+
+  it('advances the clock when the master element ends early', () => {
+    harness(capture)
+    const before = latest!.positionMs // initial position: 10 s before the event
+    const el = document.createElement('video')
+    el.dataset.camera = 'front' // handlers dispatch on the data-camera attribute
+    act(() => { latest!.bindCamera('front')(el) })
+    act(() => { el.dispatchEvent(new Event('ended')) })
+    expect(latest!.positionMs).toBe(before + 1000)
+  })
+
+  it('reapplies the selected rate to reloaded elements', () => {
+    harness(capture)
+    const el = document.createElement('video')
+    el.dataset.camera = 'front'
+    act(() => {
+      latest!.setSpeed(4) // element not bound yet → only the ref is updated
+      latest!.bindCamera('front')(el)
+      el.dispatchEvent(new Event('loadedmetadata'))
+    })
+    expect(el.playbackRate).toBe(4)
+  })
 })

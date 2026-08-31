@@ -2,8 +2,19 @@ import { useEffect, useRef } from 'react'
 import type { ReactElement } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import markerIcon from 'leaflet/dist/images/marker-icon.png'
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
+import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+
+// Leaflet's Icon.Default resolves marker PNGs relative to the CSS URL, which
+// Vite's bundling breaks — wire the bundled images in explicitly.
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIcon,
+  iconRetinaUrl: markerIcon2x,
+  shadowUrl: markerShadow,
+})
 
 export function EventMap({ lat, lon, label }: { lat: number | null; lon: number | null; label: Array<string | null> }): ReactElement | null {
   const holder = useRef<HTMLDivElement | null>(null)

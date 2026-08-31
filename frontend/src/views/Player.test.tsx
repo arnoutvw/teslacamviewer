@@ -70,4 +70,20 @@ describe('Player', () => {
     expect(screen.queryByText('seeking…')).not.toBeInTheDocument()
     expect(screen.getByTestId('video-front')).toBe(video)
   })
+
+  it('renders the not-available state when the detail 404s', async () => {
+    mockDetail.mockResolvedValueOnce(null)
+    render(<Player category="SentryClips" folder="f" onBack={vi.fn()} />)
+    expect(await screen.findByText(/no longer available/i)).toBeInTheDocument()
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument()
+  })
+
+  it('renders an error with retry when the fetch fails', async () => {
+    mockDetail.mockRejectedValueOnce(new Error('HTTP 500'))
+    const user = userEvent.setup()
+    render(<Player category="SentryClips" folder="f" onBack={vi.fn()} />)
+    expect(await screen.findByText(/failed to load event/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByTestId('tile-front')).toBeInTheDocument()
+  })
 })

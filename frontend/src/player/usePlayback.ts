@@ -15,6 +15,8 @@ import {
 export const CAMERAS = ['front', 'back', 'left_repeater', 'right_repeater', 'left_pillar', 'right_pillar'] as const
 
 const MASTER = 'front'
+/** On 'ended' (real segment shorter than its estimate) the clock is nudged this far ahead. */
+const END_STEP_SECONDS = 1
 
 export interface PlaybackState {
   ready: boolean
@@ -50,6 +52,8 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
   const lastKeys = useRef<Record<string, string>>({})
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeedState] = useState(1)
+  /** Mirror of `speed` for ref callbacks and media-event handlers. */
+  const speedRef = useRef(1)
   const [positionMs, setPositionMs] = useState(0)
   const [assignments, setAssignments] = useState<Record<string, SegmentAssignment | null>>({})
   const [seeking, setSeeking] = useState<Record<string, boolean>>({})
@@ -110,6 +114,8 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
         el.currentTime = Math.max(0, target.offsetSeconds)
         setSeeking((s) => (s[camera] ? s : { ...s, [camera]: true }))
       }
+      // A src swap restarts the media load algorithm, which resets the rate.
+      el.playbackRate = speedRef.current
       if (playingNow) void el.play().catch(() => {})
       else el.pause()
     }
@@ -146,7 +152,9 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
               continue
             }
             const el = elements.current[cam]
-            if (el == null || !target.segment.playable || el.readyState < 2) continue
+            // A slave that ended early must not be dragged beyond its true
+            // duration every frame; it stays parked until the next segment.
+            if (el == null || !target.segment.playable || el.readyState < 2 || el.ended) continue
             const expected = (abs - timestampMs(target.segment.start)) / 1000
             if (Math.abs(el.currentTime - expected) > DRIFT_CORRECTION_SECONDS) {
               el.currentTime = Math.max(0, expected)
@@ -175,6 +183,7 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
     const offset = pendingOffset.current[cam]
     if (offset != null) {
       el.currentTime = Math.max(0, offset)
+      el.playbackRate = speedRef.current // fresh media load → rate was reset
       setSeeking((s) => (s[cam] ? s : { ...s, [cam]: true }))
       delete pendingOffset.current[cam]
       if (playingRef.current) void el.play().catch(() => {})
@@ -221,8 +230,17 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
 
   const skip = useCallback((deltaSeconds: number): void => seekTo(position.current + deltaSeconds * 1000), [seekTo])
 
+  /** A real segment shorter than its estimate fires 'ended' while the frozen
+   * clock is still below the estimated boundary; force the clock forward. */
+  const handleEnded = useCallback((ev: Event): void => {
+    const cam = (ev.target as HTMLElement).dataset.camera
+    if (cam == null || cam !== MASTER) return
+    seekTo(position.current + END_STEP_SECONDS * 1000)
+  }, [seekTo])
+
   const setSpeed = useCallback((s: number): void => {
     setSpeedState(s)
+    speedRef.current = s
     for (const cam of CAMERAS) {
       const el = elements.current[cam]
       if (el != null) el.playbackRate = s
@@ -236,13 +254,15 @@ export function usePlayback(detail: EventDetailDto | null): PlaybackState {
     if (prev != null) {
       prev.removeEventListener('loadedmetadata', handleLoadedMetadata)
       prev.removeEventListener('seeked', handleSeeked)
+      prev.removeEventListener('ended', handleEnded)
     }
     elements.current[camera] = el
     if (el != null) {
       el.addEventListener('loadedmetadata', handleLoadedMetadata)
       el.addEventListener('seeked', handleSeeked)
+      el.addEventListener('ended', handleEnded)
     }
-  }, [handleLoadedMetadata, handleSeeked])
+  }, [handleLoadedMetadata, handleSeeked, handleEnded])
 
   return {
     ready: detail != null,
