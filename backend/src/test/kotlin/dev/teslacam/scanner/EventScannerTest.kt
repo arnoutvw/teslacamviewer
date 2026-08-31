@@ -137,6 +137,18 @@ class EventScannerTest {
     }
 
     @Test
+    fun `partial event json with only reason and camera keeps metadata`() {
+        segment("SentryClips", "2026-07-10_17-21-39", "2026-07-10_17-19-23-front.mp4")
+        json("SentryClips", "2026-07-10_17-21-39",
+            """{"reason":"sentry_aware_object_detection","camera":"5"}""")
+        val e = scanner().scan()["SentryClips"]!![0]
+        assertNotNull(e.metadata)
+        assertEquals(5, e.metadata?.cameraIndex)
+        assertNull(e.metadata?.timestamp)
+        assertNull(e.metadata?.city)
+    }
+
+    @Test
     fun `camera index outside order yields null camera name`() {
         segment("SentryClips", "2026-07-10_17-21-39", "2026-07-10_17-19-23-front.mp4")
         json("SentryClips", "2026-07-10_17-21-39",

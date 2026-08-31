@@ -69,8 +69,10 @@ class EventScanner(
             ?.let { runCatching { Files.readString(it) }.getOrNull() }
             ?.takeUnless { it.isBlank() }
             ?.let { jsonParser.parse(it) }
-        // parse() never throws on corrupt json; all-nulls means unusable => store null.
-        val effective = metadata?.takeIf { it.timestamp != null || it.city != null }
+        // parse() never throws on corrupt json; an EventMetadata with every field
+        // null means unusable/absent json => store null. Partial metadata (e.g. only
+        // reason/camera) is kept so those fields reach the API DTO.
+        val effective = metadata?.takeUnless { it.allFieldsNull() }
         return EventSummary(
             category = category,
             folder = folder.fileName.toString(),
@@ -121,6 +123,10 @@ class EventScanner(
         )
         return EventDetail(summary, byCamera, timeline)
     }
+
+    private fun EventMetadata.allFieldsNull(): Boolean =
+        timestamp == null && city == null && street == null && lat == null &&
+            lon == null && reason == null && cameraIndex == null
 
     private fun parseFolderTimestamp(folder: String): LocalDateTime =
         try {
