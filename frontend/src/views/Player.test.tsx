@@ -18,10 +18,10 @@ const detail: EventDetailDto = {
     timestamp: '2026-07-10T17:20:00',
     timestampSource: 'event',
     city: null, street: null, reason: null, lat: null, lon: null,
-    camera: 'back', cameraIndex: 1, segmentCount: 1, playable: true,
+    camera: 'back', cameraIndex: 1, segmentCount: 1, playable: true, encrypted: false,
   },
   segmentsByCamera: {
-    front: [{ camera: 'front', start: '2026-07-10T17:19:23', url: '/media/f/1-front.mp4', playable: true, estimatedSeconds: 60 }],
+    front: [{ camera: 'front', start: '2026-07-10T17:19:23', url: '/media/f/1-front.mp4', playable: true, estimatedSeconds: 60, encrypted: false, keyItem: null }],
   },
   timeline: { start: '2026-07-10T17:19:23', end: '2026-07-10T17:20:23' },
 }

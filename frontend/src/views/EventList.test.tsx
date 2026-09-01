@@ -29,6 +29,7 @@ const event: EventSummaryDto = {
   cameraIndex: 5,
   segmentCount: 2,
   playable: true,
+  encrypted: false,
 }
 
 beforeEach(() => vi.clearAllMocks())

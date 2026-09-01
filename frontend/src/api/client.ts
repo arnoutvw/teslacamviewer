@@ -15,6 +15,7 @@ export interface EventSummaryDto {
   cameraIndex: number | null
   segmentCount: number
   playable: boolean
+  encrypted: boolean
 }
 
 export interface SegmentDto {
@@ -23,6 +24,17 @@ export interface SegmentDto {
   url: string
   playable: boolean
   estimatedSeconds: number
+  encrypted: boolean
+  keyItem: KeyItemDto | null
+}
+
+export interface KeyItemDto {
+  id: string
+  vin: string
+  keyId: number
+  timestamp: number
+  wrappedKey: string
+  publicKey: string
 }
 
 export interface TimelineDto {
@@ -48,4 +60,81 @@ export async function listEvents(category: Category): Promise<EventSummaryDto[]>
 
 export async function getEventDetail(category: Category, folder: string): Promise<EventDetailDto | null> {
   return parse<EventDetailDto>(await fetch(`/api/events/${category}/${encodeURIComponent(folder)}`))
+}
+
+export interface TeslaTokens {
+  accessToken: string
+  refreshToken: string
+  expiresAt: number
+}
+
+const TOKENS_KEY = 'tesla.tokens'
+
+export function loadTokens(): TeslaTokens | null {
+  try {
+    const raw = localStorage.getItem(TOKENS_KEY)
+    return raw == null ? null : (JSON.parse(raw) as TeslaTokens)
+  } catch {
+    return null
+  }
+}
+
+export function saveTokens(t: TeslaTokens): void {
+  localStorage.setItem(TOKENS_KEY, JSON.stringify(t))
+}
+
+export function clearTokens(): void {
+  localStorage.removeItem(TOKENS_KEY)
+}
+
+export async function refreshTokens(): Promise<TeslaTokens | null> {
+  const tokens = loadTokens()
+  if (tokens == null) return null
+  const res = await fetch('/api/tesla/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+  })
+  if (!res.ok) {
+    clearTokens()
+    return null
+  }
+  const fresh = (await res.json()) as TeslaTokens
+  saveTokens(fresh)
+  return fresh
+}
+
+export async function getValidAccessToken(): Promise<string | null> {
+  const tokens = loadTokens()
+  if (tokens == null) return null
+  if (Date.now() < tokens.expiresAt) return tokens.accessToken
+  const fresh = await refreshTokens()
+  return fresh?.accessToken ?? null
+}
+
+export async function exchangeCode(code: string, verifier: string): Promise<TeslaTokens> {
+  const res = await fetch('/api/tesla/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, verifier }),
+  })
+  if (!res.ok) throw new Error(`token exchange failed: HTTP ${res.status}`)
+  return (await res.json()) as TeslaTokens
+}
+
+export interface FetchKeysResult {
+  results: { id: string; status: string }[]
+  fetched: number
+}
+
+export async function fetchKeys(items: KeyItemDto[]): Promise<FetchKeysResult> {
+  const token = await getValidAccessToken()
+  if (token == null) throw new Error('not_logged_in')
+  const res = await fetch('/api/keys/fetch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ items }),
+  })
+  if (!res.ok) throw new Error(`key fetch failed: HTTP ${res.status}`)
+  return (await res.json()) as FetchKeysResult
 }

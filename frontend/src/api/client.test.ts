@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getEventDetail, listEvents } from './client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearTokens, getEventDetail, listEvents, loadTokens, saveTokens } from './client'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -49,5 +49,26 @@ describe('getEventDetail', () => {
   it('resolves null on 404', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })))
     await expect(getEventDetail('SentryClips', 'missing')).resolves.toBeNull()
+  })
+})
+
+describe('token storage', () => {
+  const tokens = { accessToken: 'at', refreshToken: 'rt', expiresAt: 12345 }
+
+  beforeEach(() => localStorage.clear())
+
+  it('loadTokens returns null when unset', () => {
+    expect(loadTokens()).toBeNull()
+  })
+
+  it('saveTokens/loadTokens round-trip', () => {
+    saveTokens(tokens)
+    expect(loadTokens()).toEqual(tokens)
+  })
+
+  it('clearTokens removes', () => {
+    saveTokens(tokens)
+    clearTokens()
+    expect(loadTokens()).toBeNull()
   })
 })

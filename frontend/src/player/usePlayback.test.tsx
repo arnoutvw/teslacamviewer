@@ -9,6 +9,8 @@ const seg = (camera: string, start: string, s: number): EventDetailDto['segments
   url: `/media/SentryClips/f/${start}-${camera}.mp4`,
   playable: true,
   estimatedSeconds: s,
+  encrypted: false,
+  keyItem: null,
 })
 
 const detail: EventDetailDto = {
@@ -18,7 +20,7 @@ const detail: EventDetailDto = {
     timestamp: '2026-07-10T17:20:00',
     timestampSource: 'event',
     city: null, street: null, reason: null, lat: null, lon: null,
-    camera: 'back', cameraIndex: 1, segmentCount: 1, playable: true,
+    camera: 'back', cameraIndex: 1, segmentCount: 1, playable: true, encrypted: false,
   },
   segmentsByCamera: {
     front: [seg('front', '2026-07-10T17:19:23', 60)],
