@@ -47,7 +47,7 @@ class TeslaKeyClient(builder: RestClient.Builder) {
 
     private fun execute(batch: List<KeyItem>, token: String): Map<String, String> {
         val body = mapOf("items" to batch.map { BatchItem(it.id, it.vin, it.keyId, it.timestamp, it.wrappedKey, it.publicKey) })
-        val raw = try {
+        val raw: String? = try {
             rest.post()
                 .uri(BATCH_URL)
                 .header("Authorization", "Bearer $token")
@@ -56,7 +56,6 @@ class TeslaKeyClient(builder: RestClient.Builder) {
                 .body(body)
                 .retrieve()
                 .body(String::class.java)
-                ?: throw ApiError(200, "empty response body")
         } catch (e: RestClientResponseException) {
             when (e.statusCode.value()) {
                 403 -> throw AkamaiChallenge("Tesla blocked the key request (Akamai challenge, HTTP 403)")
@@ -66,6 +65,7 @@ class TeslaKeyClient(builder: RestClient.Builder) {
         } catch (e: Exception) {
             throw NetworkError(e.message ?: "network failure")
         }
+        if (raw == null) throw ApiError(200, "empty response body")
         return normalizeResults(raw)
     }
 

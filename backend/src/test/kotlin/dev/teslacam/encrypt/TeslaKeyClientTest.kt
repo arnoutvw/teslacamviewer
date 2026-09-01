@@ -2,7 +2,6 @@ package dev.teslacam.encrypt
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatusCode
 import org.springframework.http.MediaType
 import org.springframework.test.web.client.MockRestServiceServer
@@ -79,6 +78,14 @@ class TeslaKeyClientTest {
         val (client, server) = client()
         server.expect(requestTo(TeslaKeyClient.BATCH_URL)).andRespond(withStatus(HttpStatusCode.valueOf(401)))
         assertThrows(AuthError::class.java) { client.fetchKeys(listOf(item("a")), "tok") }
+    }
+
+    @Test
+    fun `empty response body maps to ApiError`() {
+        val (client, server) = client()
+        server.expect(requestTo(TeslaKeyClient.BATCH_URL)).andRespond(
+            withSuccess("", MediaType.APPLICATION_JSON))
+        assertThrows(ApiError::class.java) { client.fetchKeys(listOf(item("a")), "tok") }
     }
 
     @Test
