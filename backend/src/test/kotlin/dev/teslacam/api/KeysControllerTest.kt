@@ -122,11 +122,91 @@ class KeysControllerTest {
                 .content(body(item, second)),
         )
             .andExpect(status().isOk)
+            .andExpect(jsonPath("$.error").value("akamai_blocked"))
             .andExpect(jsonPath("$.results[0].id").value(item.id))
             .andExpect(jsonPath("$.results[0].status").value("failed"))
             .andExpect(jsonPath("$.results[1].id").value(second.id))
             .andExpect(jsonPath("$.results[1].status").value("failed"))
             .andExpect(jsonPath("$.fetched").value(0))
+    }
+
+    @Test
+    fun `expired token surfaces as 401 not_logged_in`() {
+        every { client.fetchKeys(any(), any()) } throws AuthError("Tesla rejected the access token (HTTP 401)")
+        mvc.perform(
+            post("/api/keys/fetch")
+                .header("Authorization", "Bearer expired")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(item)),
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.error").value("not_logged_in"))
+    }
+
+    @Test
+    fun `tesla api error surfaces as 200 api_error with failed items`() {
+        every { client.fetchKeys(any(), any()) } throws ApiError(500, "boom")
+        mvc.perform(
+            post("/api/keys/fetch")
+                .header("Authorization", "Bearer tok")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(item)),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.error").value("api_error"))
+            .andExpect(jsonPath("$.results[0].id").value(item.id))
+            .andExpect(jsonPath("$.results[0].status").value("failed"))
+            .andExpect(jsonPath("$.fetched").value(0))
+    }
+
+    @Test
+    fun `network error surfaces as 200 network_error with failed items`() {
+        every { client.fetchKeys(any(), any()) } throws NetworkError("connection reset")
+        mvc.perform(
+            post("/api/keys/fetch")
+                .header("Authorization", "Bearer tok")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(item)),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.error").value("network_error"))
+            .andExpect(jsonPath("$.results[0].status").value("failed"))
+            .andExpect(jsonPath("$.fetched").value(0))
+    }
+
+    @Test
+    fun `batch error does not discard earlier groups' keys`() {
+        val items = (0 until 31).map { n ->
+            item.copy(
+                id = "SentryClips/2026-07-10_17-21-39/clip-%02d-front.mp4".format(n),
+                // Distinct storeKeys; the last item forms the failing second chunk.
+                timestamp = 1_700_000_000_000L + n,
+            )
+        }
+        // Controller chunks 31 missing items into one 30-group and one 1-group.
+        every { client.fetchKeys(match<List<KeyItem>> { it.size == 30 }, "tok") } returns
+            items.take(30).associate { it.id to fek }
+        every { client.fetchKeys(match<List<KeyItem>> { it.size == 1 }, "tok") } throws
+            NetworkError("connection reset")
+        val raw = mvc.perform(
+            post("/api/keys/fetch")
+                .header("Authorization", "Bearer tok")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(*items.toTypedArray())),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.error").value("network_error"))
+            .andExpect(jsonPath("$.fetched").value(30))
+            .andReturn().response.contentAsString
+        val results = com.fasterxml.jackson.databind.ObjectMapper().readTree(raw)["results"]
+        // Group 1: keys persisted and reported fetched...
+        items.take(30).forEach { assertNotNull(store.get(it.storeKey)) }
+        (0 until 30).forEach { n ->
+            org.junit.jupiter.api.Assertions.assertEquals("fetched", results[n].path("status").asText())
+        }
+        // ...group 2 failed without losing group 1.
+        org.junit.jupiter.api.Assertions.assertEquals("failed", results[30].path("status").asText())
+        assertNull(store.get(items[30].storeKey))
     }
 
     @Test

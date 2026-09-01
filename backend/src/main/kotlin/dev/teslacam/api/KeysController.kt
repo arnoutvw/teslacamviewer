@@ -31,24 +31,38 @@ class KeysController(
                 results += mapOf("id" to item.id, "status" to "fetched"); fetched++
             } else missing += item
         }
-        if (missing.isNotEmpty()) {
+        var batchError: String? = null
+        // Chunk here (fetchKeys chunks at the same size) so each call is one wire
+        // batch; a failed group must not discard keys already persisted from an
+        // earlier group.
+        for (group in missing.chunked(TeslaKeyClient.MAX_BATCH)) {
             val keys = try {
-                keyClient.fetchKeys(missing, token)
+                keyClient.fetchKeys(group, token)
+            } catch (e: AuthError) {
+                // Expired token: treat as not logged in so the frontend refreshes/re-logins.
+                return ResponseEntity.status(401).body(mapOf("error" to "not_logged_in"))
             } catch (e: TeslaKeyException) {
-                missing.forEach { results += mapOf("id" to it.id, "status" to "failed") }
-                return ResponseEntity.ok(mapOf("results" to results, "fetched" to fetched))
+                batchError = when (e) {
+                    is AkamaiChallenge -> "akamai_blocked"
+                    is ApiError -> "api_error"
+                    else -> "network_error"
+                }
+                group.forEach { results += mapOf("id" to it.id, "status" to "failed") }
+                continue
             }
             // Persist keyed by storeKey so playback can look up without path knowledge.
             val byStoreKey = keys.mapNotNull { (id, fek) ->
-                missing.find { it.id == id }?.let { it.storeKey to fek }
+                group.find { it.id == id }?.let { it.storeKey to fek }
             }.toMap()
             keyStore.putAll(byStoreKey)
-            for (item in missing) {
+            for (item in group) {
                 val status = if (keys.containsKey(item.id)) "fetched" else "no_key"
                 if (status == "fetched") fetched++
                 results += mapOf("id" to item.id, "status" to status)
             }
         }
-        return ResponseEntity.ok(mapOf("results" to results, "fetched" to fetched))
+        val responseBody = mutableMapOf<String, Any>("results" to results, "fetched" to fetched)
+        if (batchError != null) responseBody["error"] = batchError
+        return ResponseEntity.ok(responseBody)
     }
 }
