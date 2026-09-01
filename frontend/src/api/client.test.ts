@@ -124,4 +124,18 @@ describe('fetchKeys', () => {
       headers: expect.objectContaining({ Authorization: 'Bearer at' }),
     }))
   })
+
+  it('surfaces the batch-level error field from a Tesla-side failure (HTTP 200)', async () => {
+    saveTokens(tokens)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ results: [{ id: 'clip-1', status: 'failed' }], fetched: 0, error: 'akamai_blocked' }), { status: 200 })),
+    )
+    await expect(fetchKeys([item])).resolves.toEqual({
+      results: [{ id: 'clip-1', status: 'failed' }],
+      fetched: 0,
+      error: 'akamai_blocked',
+    })
+  })
 })

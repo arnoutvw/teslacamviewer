@@ -166,13 +166,39 @@ describe('EncryptionGate', () => {
     expect(await screen.findByText('CHILD')).toBeInTheDocument()
   })
 
-  it('maps an Akamai 403 to an explicit blocked message', async () => {
+  it('maps a batch-level akamai_blocked error to an explicit blocked message with Retry', async () => {
     mockGetToken.mockResolvedValue('test-token')
-    mockFetchKeys.mockRejectedValue(new Error('key fetch failed: HTTP 403'))
+    // KeysController reports Tesla-side failures with HTTP 200 + a batch-level
+    // error field; per-item statuses come back as "failed".
+    mockFetchKeys.mockResolvedValue({
+      results: [{ id: 'k1', status: 'failed' }],
+      fetched: 0,
+      error: 'akamai_blocked',
+    })
+    const user = userEvent.setup()
     renderView(
       <EncryptionGate detail={makeDetail([seg('s1', true, keyItem)])}>CHILD</EncryptionGate>,
     )
     expect(await screen.findByText(/blocked by tesla/i)).toBeInTheDocument()
+    expect(screen.queryByText('CHILD')).not.toBeInTheDocument()
+    mockFetchKeys.mockResolvedValue({ results: [{ id: 'k1', status: 'fetched' }], fetched: 1 })
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('CHILD')).toBeInTheDocument()
+  })
+
+  it('routes api_error/network_error batch errors to the generic error alert', async () => {
+    mockGetToken.mockResolvedValue('test-token')
+    mockFetchKeys.mockResolvedValue({
+      results: [{ id: 'k1', status: 'failed' }],
+      fetched: 0,
+      error: 'network_error',
+    })
+    renderView(
+      <EncryptionGate detail={makeDetail([seg('s1', true, keyItem)])}>CHILD</EncryptionGate>,
+    )
+    expect(await screen.findByText(/network_error/i)).toBeInTheDocument()
+    expect(screen.queryByText('CHILD')).not.toBeInTheDocument()
+    expect(screen.queryByText(/could not be decrypted/i)).not.toBeInTheDocument()
   })
 
   it('shows the login prompt when fetchKeys reports not_logged_in', async () => {

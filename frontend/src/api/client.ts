@@ -128,6 +128,11 @@ export async function exchangeCode(code: string, verifier: string): Promise<Tesl
 export interface FetchKeysResult {
   results: { id: string; status: string }[]
   fetched: number
+  /**
+   * Batch-level failure reported with HTTP 200 when the Tesla-side key fetch
+   * could not run (per-item statuses come back as "failed" alongside it).
+   */
+  error?: 'akamai_blocked' | 'api_error' | 'network_error'
 }
 
 export async function fetchKeys(items: KeyItemDto[]): Promise<FetchKeysResult> {

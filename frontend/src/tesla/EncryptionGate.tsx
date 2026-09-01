@@ -11,6 +11,9 @@ import { useTeslaAuth } from './useTeslaAuth'
 
 type Phase = 'ok' | 'checking' | 'fetching' | 'partial' | 'login' | 'error'
 
+const BLOCKED_MESSAGE =
+  'The server-side key fetch was blocked by Tesla (HTTP 403 — Akamai). Please retry later.'
+
 /**
  * Blocks playback behind the key fetch for encrypted events: dedupes the
  * segments' key items, makes sure the user has a valid Tesla token, fetches
@@ -46,10 +49,13 @@ export default function EncryptionGate({ detail, children }: { detail: EventDeta
   const [retryTick, setRetryTick] = useState(0)
 
   useEffect(() => {
+    // Reset before any early return: a gate instance re-used across a detail
+    // change must never render one frame of stale children or error state.
+    setPhase(keyItems.length === 0 ? 'ok' : 'fetching')
+    setNoKeyCount(0)
+    setErrorText(null)
     if (keyItems.length === 0) return
     let cancelled = false
-    setPhase('fetching')
-    setErrorText(null)
     getValidAccessToken()
       .then((token) => {
         // No stored token, or refresh failed → step 1: the login prompt.
@@ -64,6 +70,18 @@ export default function EncryptionGate({ detail, children }: { detail: EventDeta
       })
       .then((res) => {
         if (cancelled || res == null) return
+        // Batch-level Tesla-side failure arrives with HTTP 200; route it to the
+        // error phase instead of counting the failed items as mere no_key.
+        if (res.error === 'akamai_blocked') {
+          setErrorText(BLOCKED_MESSAGE)
+          setPhase('error')
+          return
+        }
+        if (res.error != null) {
+          setErrorText(`Key fetch failed: ${res.error}`)
+          setPhase('error')
+          return
+        }
         const missing = res.results.filter((r) => r.status !== 'fetched').length
         setNoKeyCount(missing)
         setPhase(missing > 0 ? 'partial' : 'ok')
@@ -125,7 +143,6 @@ export default function EncryptionGate({ detail, children }: { detail: EventDeta
   }
 
   // error
-  const blocked = errorText != null && errorText.includes('403')
   return (
     <Box sx={{ p: 3 }}>
       <Alert
@@ -136,9 +153,7 @@ export default function EncryptionGate({ detail, children }: { detail: EventDeta
           </Button>
         }
       >
-        {blocked
-          ? 'The server-side key fetch was blocked by Tesla (HTTP 403 — Akamai). Please retry later.'
-          : errorText}
+        {errorText}
       </Alert>
     </Box>
   )
