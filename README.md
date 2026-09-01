@@ -92,12 +92,17 @@ Caveats:
 - The Tesla token lives in your browser's localStorage; log out clears it.
 - Key requests to Tesla may occasionally be blocked (HTTP 403, Akamai). Retry
   later if that happens.
+- The key cache is written next to your footage, so it cannot persist when
+  `/data` is mounted read-only (`-v ...:/data:ro`): fetched keys last only for
+  the container's lifetime and are re-fetched on each restart. Point
+  `TESLACAM_KEYSTORE_PATH` at a writable location to persist them, e.g.:
+  `-e TESLACAM_KEYSTORE_PATH=/config/.teslacam_keys.json -v /path/to/config:/config`.
 - Decryption happens on the fly; unencrypted clips are unaffected.
 
 ## Tests
 
 ```bash
-cd frontend && npm test -- --run      # vitest + testing-library (85 tests)
+cd frontend && npm test -- --run      # vitest + testing-library (88 tests)
 cd backend && ./gradlew test          # JUnit 5 scanner/API tests
 ```
 
