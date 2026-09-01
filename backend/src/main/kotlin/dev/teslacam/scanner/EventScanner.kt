@@ -86,7 +86,7 @@ class EventScanner(
             cameraName = effective?.cameraIndex?.let { cameras.cameraName(it) },
             segmentCount = segments.size,
             playable = segments.any { it.bytes > 0 },
-            encrypted = segments.any { detector.headerFor(it.file) != null },
+            encrypted = segments.any { runCatching { detector.headerFor(it.file) }.getOrNull() != null },
         )
     }
 
@@ -109,7 +109,8 @@ class EventScanner(
             .groupBy { it.camera }
             .mapValues { (_, list) ->
                 list.sortedBy { it.start }.map { seg ->
-                    val header = detector.headerFor(seg.file)
+                    // A file that vanished after the stat pass must not fail the detail call.
+                    val header = runCatching { detector.headerFor(seg.file) }.getOrNull()
                     SegmentInfo(
                         camera = seg.camera,
                         start = seg.start,

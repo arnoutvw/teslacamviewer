@@ -1,6 +1,7 @@
 package dev.teslacam.scanner
 
 import dev.teslacam.encrypt.TestClips
+import io.mockk.every
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -211,5 +212,21 @@ class EventScannerTest {
         val dir = root.resolve("SentryClips").resolve("2026-07-10_17-21-39")
         TestClips.buildEncrypted(dir, "2026-07-10_17-19-23-back.mp4", ByteArray(4096))
         assertTrue(scanner().scan()["SentryClips"]!![0].encrypted)
+    }
+
+    @Test
+    fun `detector failure on a segment does not fail the scan`() {
+        segment("SentryClips", "2026-07-10_17-21-39", "2026-07-10_17-19-23-front.mp4")
+        val detector = io.mockk.mockk<dev.teslacam.encrypt.EncryptionDetector> {
+            every { headerFor(any()) } throws java.io.IOException("file vanished")
+        }
+        val s = EventScanner(root.toString(), cameras, detector)
+        val e = s.scan()["SentryClips"]!![0]
+        assertEquals(1, e.segmentCount)
+        assertFalse(e.encrypted)
+        // detail() path is equally tolerant.
+        val d = s.detail("SentryClips", "2026-07-10_17-21-39")!!
+        assertFalse(d.segmentsByCamera["front"]!![0].encrypted)
+        assertNull(d.segmentsByCamera["front"]!![0].keyItem)
     }
 }
