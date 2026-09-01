@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearTokens, getEventDetail, listEvents, loadTokens, saveTokens } from './client'
+import {
+  clearTokens,
+  fetchKeys,
+  getEventDetail,
+  listEvents,
+  loadTokens,
+  refreshTokens,
+  saveTokens,
+  type KeyItemDto,
+} from './client'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -70,5 +79,49 @@ describe('token storage', () => {
     saveTokens(tokens)
     clearTokens()
     expect(loadTokens()).toBeNull()
+  })
+})
+
+describe('refreshTokens', () => {
+  const tokens = { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 60_000 }
+
+  beforeEach(() => {
+    localStorage.clear()
+    saveTokens(tokens)
+  })
+
+  it('clears stored tokens and resolves null on 401', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{"error":"refresh_failed"}', { status: 401 })))
+    await expect(refreshTokens()).resolves.toBeNull()
+    expect(loadTokens()).toBeNull()
+  })
+
+  it('throws on transient server errors without clearing tokens', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('bad gateway', { status: 502 })))
+    await expect(refreshTokens()).rejects.toThrow('HTTP 502')
+    expect(loadTokens()).toEqual(tokens)
+  })
+})
+
+describe('fetchKeys', () => {
+  const tokens = { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 60_000 }
+  const item: KeyItemDto = {
+    id: 'clip-1', vin: 'VIN', keyId: 1, timestamp: 123, wrappedKey: 'w', publicKey: 'p',
+  }
+
+  beforeEach(() => localStorage.clear())
+
+  it('throws not_logged_in when no token is stored', async () => {
+    await expect(fetchKeys([item])).rejects.toThrow('not_logged_in')
+  })
+
+  it('throws not_logged_in on 401 (expired token)', async () => {
+    saveTokens(tokens)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{"error":"not_logged_in"}', { status: 401 })))
+    await expect(fetchKeys([item])).rejects.toThrow('not_logged_in')
+    expect(fetch).toHaveBeenCalledWith('/api/keys/fetch', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({ Authorization: 'Bearer at' }),
+    }))
   })
 })

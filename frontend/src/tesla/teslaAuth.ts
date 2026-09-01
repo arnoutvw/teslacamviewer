@@ -1,4 +1,4 @@
-import { exchangeCode } from '../api/client'
+import { exchangeCode, saveTokens } from '../api/client'
 
 export const AUTHORIZE_URL = 'https://auth.tesla.com/oauth2/v3/authorize'
 export const CLIENT_ID = 'dashcam'
@@ -61,5 +61,7 @@ export function completeLogin(pastedUrl: string): Promise<void> {
   const pkce = takePkce()
   if (pkce == null) return Promise.reject(new Error('No pending login — start the login first'))
   if (pkce.state !== parsed.state) return Promise.reject(new Error('State mismatch — paste the URL from the same login attempt'))
-  return exchangeCode(parsed.code, pkce.verifier).then(() => undefined)
+  return exchangeCode(parsed.code, pkce.verifier).then((tokens) => {
+    saveTokens(tokens)
+  })
 }

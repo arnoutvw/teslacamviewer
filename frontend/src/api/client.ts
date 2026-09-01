@@ -95,10 +95,13 @@ export async function refreshTokens(): Promise<TeslaTokens | null> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken: tokens.refreshToken }),
   })
-  if (!res.ok) {
+  if (res.status === 401) {
+    // Token rejected — treat as logged out. Other failures may be transient
+    // (5xx, network blips), so keep the stored tokens and let the caller retry.
     clearTokens()
     return null
   }
+  if (!res.ok) throw new Error(`token refresh failed: HTTP ${res.status}`)
   const fresh = (await res.json()) as TeslaTokens
   saveTokens(fresh)
   return fresh
@@ -135,6 +138,9 @@ export async function fetchKeys(items: KeyItemDto[]): Promise<FetchKeysResult> {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ items }),
   })
+  // Backend signals an expired/missing token with 401 {"error":"not_logged_in"};
+  // callers use this to show the login prompt.
+  if (res.status === 401) throw new Error('not_logged_in')
   if (!res.ok) throw new Error(`key fetch failed: HTTP ${res.status}`)
   return (await res.json()) as FetchKeysResult
 }
