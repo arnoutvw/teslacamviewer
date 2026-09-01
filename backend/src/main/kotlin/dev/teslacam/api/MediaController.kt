@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RestController
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 
 /**
@@ -63,7 +64,15 @@ class MediaController(
         if (category !in CATEGORIES || !ALLOWED_FILE.matches(file)) return notFound()
         val path = safePath(category, folder, file) ?: return notFound()
         val contentType = if (file.endsWith(".mp4")) MediaType.parseMediaType("video/mp4") else MediaType.IMAGE_PNG
-        val header = detector.headerFor(path)
+        // TOCTOU with RecentClips rotation: the file may vanish between the
+        // safePath existence check and headerFor()'s stat calls, which throw
+        // NoSuchFileException. Gone is gone — 404, not a 500. (A null return
+        // is a valid *plain* file and must fall through to plain serving.)
+        val header = try {
+            detector.headerFor(path)
+        } catch (_: NoSuchFileException) {
+            return notFound()
+        }
         return if (header == null) plain(path, contentType)
         else {
             encrypted(path, header, contentType, request, response)

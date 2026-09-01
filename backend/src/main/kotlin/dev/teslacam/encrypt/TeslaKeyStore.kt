@@ -11,13 +11,20 @@ import java.nio.file.StandardCopyOption
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * FEK cache persisted as JSON at `<teslacam.root>/.teslacam_keys.json`,
+ * FEK cache persisted as JSON at `<teslacam.root>/.teslacam_keys.json`
+ * (overridable via [teslacam.keystore-path]/TESLACAM_KEYSTORE_PATH for
+ * deployments where the footage root is mounted read-only),
  * mapping "<vin>:<key_id>:<timestamp>" -> base64 16-byte FEK.
  * Never logs FEK values.
  */
 @Component
-class TeslaKeyStore(@Value("\${teslacam.root}") root: String) {
-    private val file = Path.of(root).resolve(".teslacam_keys.json")
+class TeslaKeyStore(
+    @Value("\${teslacam.root}") root: String,
+    @Value("\${teslacam.keystore-path:}") configuredPath: String = "",
+) {
+    private val file = configuredPath.trim().takeIf { it.isNotEmpty() }
+        ?.let { Path.of(it) }
+        ?: Path.of(root).resolve(".teslacam_keys.json")
     private val keys = ConcurrentHashMap<String, String>()
     private val mapper = ObjectMapper().registerKotlinModule()
     private val lock = Any()
@@ -48,8 +55,15 @@ class TeslaKeyStore(@Value("\${teslacam.root}") root: String) {
         added
     }
 
+    /** Drops an entry (e.g. a corrupt value) and persists the removal. */
+    fun remove(storeKey: String): Boolean = synchronized(lock) {
+        val removed = keys.remove(storeKey) != null
+        if (removed) save()
+        removed
+    }
+
     private fun save(): Unit = runCatching<Unit> {
-        val tmp = file.resolveSibling(".teslacam_keys.json.tmp")
+        val tmp = file.resolveSibling(file.fileName.toString() + ".tmp")
         Files.write(tmp, mapper.writeValueAsBytes(keys))
         Files.move(tmp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
     }.onFailure { it.printStackTrace() }.getOrDefault(Unit)

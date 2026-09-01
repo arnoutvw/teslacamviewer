@@ -1,3 +1,4 @@
 teslacam:
   root: ${TESLACAM_ROOT:../tesla-files}
+  keystore-path: ${TESLACAM_KEYSTORE_PATH:}
   camera-order: front,back,left_repeater,right_repeater,left_pillar,right_pillar

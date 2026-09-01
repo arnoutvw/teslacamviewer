@@ -27,9 +27,18 @@ class KeysController(
         var fetched = 0
         val missing = mutableListOf<KeyItem>()
         for (item in body.items) {
-            if (keyStore.get(item.storeKey) != null) {
+            val cached = keyStore.get(item.storeKey)
+            if (cached != null && isUsableFek(cached)) {
                 results += mapOf("id" to item.id, "status" to "fetched"); fetched++
-            } else missing += item
+                continue
+            }
+            if (cached != null) {
+                // Corrupt entry (undecodable or wrong length): requireFek would
+                // 409 forever, and putAll's putIfAbsent would never overwrite
+                // it — drop it so the re-fetch below persists a fresh key.
+                keyStore.remove(item.storeKey)
+            }
+            missing += item
         }
         var batchError: String? = null
         // Chunk here (fetchKeys chunks at the same size) so each call is one wire
@@ -64,5 +73,11 @@ class KeysController(
         val responseBody = mutableMapOf<String, Any>("results" to results, "fetched" to fetched)
         if (batchError != null) responseBody["error"] = batchError
         return ResponseEntity.ok(responseBody)
+    }
+
+    /** Same validity rules as [EncryptedMediaService.requireFek]: base64-decodable, 16 bytes. */
+    private fun isUsableFek(b64: String): Boolean {
+        val decoded = runCatching { java.util.Base64.getDecoder().decode(b64) }.getOrNull() ?: return false
+        return decoded.size == 16
     }
 }

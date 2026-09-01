@@ -2,6 +2,8 @@ package dev.teslacam.api
 
 import dev.teslacam.encrypt.EncryptedMediaService
 import dev.teslacam.encrypt.EncryptionDetector
+import io.mockk.every
+import io.mockk.mockk
 import dev.teslacam.encrypt.TestClips
 import dev.teslacam.encrypt.TeslaKeyStore
 import org.junit.jupiter.api.BeforeEach
@@ -14,6 +16,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.async
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 
 /**
@@ -137,6 +140,21 @@ class MediaControllerEncryptTest {
         val r = getAndDispatch(encNoKeyFile, "bytes=0-1023")
         assertEquals(409, r.response.status)
         assertEquals("""{"error":"missing_key"}""", r.response.contentAsString)
+    }
+
+    @Test
+    fun `file vanishing after safePath check returns 404 not 500`() {
+        // TOCTOU race: RecentClips rotation deletes the clip between the
+        // controller's Files.isRegularFile check and detector.headerFor()'s
+        // stat calls, which surface as NoSuchFileException.
+        val vanishingDetector = mockk<EncryptionDetector>()
+        every { vanishingDetector.headerFor(any()) } throws NoSuchFileException("rotated away")
+        val keyStore = TeslaKeyStore(root.toString())
+        val mvc = MockMvcBuilders.standaloneSetup(
+            MediaController(root.toString(), vanishingDetector, keyStore, EncryptedMediaService(vanishingDetector, keyStore))
+        ).build()
+        val r = mvc.perform(get(plainFile)).andReturn()
+        assertEquals(404, r.response.status)
     }
 
     @Test

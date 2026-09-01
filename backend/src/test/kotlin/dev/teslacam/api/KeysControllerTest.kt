@@ -6,6 +6,7 @@ import io.mockk.Called
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
@@ -78,6 +79,26 @@ class KeysControllerTest {
             .andExpect(jsonPath("$.results[0].status").value("fetched"))
             .andExpect(jsonPath("$.fetched").value(1))
         verify { client wasNot Called }
+    }
+
+    @Test
+    fun `corrupt cached entry is not short-circuited - refetch replaces it`() {
+        // A corrupt value would otherwise 409 forever via requireFek, since
+        // putIfAbsent never overwrites.
+        store.putAll(mapOf(item.storeKey to "!!!not-base64!!!"))
+        every { client.fetchKeys(listOf(item), "tok") } returns mapOf(item.id to fek)
+        mvc.perform(
+            post("/api/keys/fetch")
+                .header("Authorization", "Bearer tok")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(item)),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.results[0].status").value("fetched"))
+            .andExpect(jsonPath("$.fetched").value(1))
+        val stored = store.get(item.storeKey)
+        assertNotNull(stored)
+        assertEquals(16, Base64.getDecoder().decode(stored!!).size)
     }
 
     @Test
