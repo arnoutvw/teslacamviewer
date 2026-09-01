@@ -11,16 +11,17 @@ import LinearProgress from '@mui/material/LinearProgress'
 import TextField from '@mui/material/TextField'
 import LoginIcon from '@mui/icons-material/Login'
 import LogoutIcon from '@mui/icons-material/Logout'
-import { useTeslaAuth, type TeslaAuthState } from './useTeslaAuth'
+import type { TeslaAuthState } from './useTeslaAuth'
 
 export default function TeslaLoginDialog({
   open,
   onClose,
-  auth = useTeslaAuth(),
+  auth,
 }: {
   open: boolean
   onClose: () => void
-  auth?: TeslaAuthState
+  /** Caller owns the hook instance (e.g. via useTeslaAuth in EventList) so header state stays in sync. */
+  auth: TeslaAuthState
 }) {
   const [step, setStep] = useState<'login' | 'paste'>('login')
   const [pastedUrl, setPastedUrl] = useState('')
@@ -33,13 +34,11 @@ export default function TeslaLoginDialog({
   }, [open])
 
   const handleStart = async (): Promise<void> => {
-    await auth.start()
-    setStep('paste')
+    if (await auth.start()) setStep('paste')
   }
 
   const handleConfirm = async (): Promise<void> => {
-    await auth.confirm(pastedUrl)
-    if (auth.error == null) onClose()
+    if (await auth.confirm(pastedUrl)) onClose()
   }
 
   return (
@@ -86,6 +85,7 @@ export default function TeslaLoginDialog({
               <Button
                 variant="contained"
                 startIcon={<LoginIcon />}
+                disabled={auth.busy}
                 onClick={() => {
                   void handleStart()
                 }}

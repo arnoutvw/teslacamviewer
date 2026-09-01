@@ -6,8 +6,10 @@ export interface TeslaAuthState {
   loggedIn: boolean
   busy: boolean
   error: string | null
-  start(): Promise<void>
-  confirm(pastedUrl: string): Promise<void>
+  /** Resolves true when the login window was opened, false on failure. */
+  start(): Promise<boolean>
+  /** Resolves true when the code exchange succeeded, false on failure. */
+  confirm(pastedUrl: string): Promise<boolean>
   logout(): void
 }
 
@@ -23,26 +25,30 @@ export function useTeslaAuth(): TeslaAuthState {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const start = useCallback(async (): Promise<void> => {
+  const start = useCallback(async (): Promise<boolean> => {
     setBusy(true)
     setError(null)
     try {
       await startLogin()
+      return true
     } catch (err) {
       setError(errorMessage(err))
+      return false
     } finally {
       setBusy(false)
     }
   }, [])
 
-  const confirm = useCallback(async (pastedUrl: string): Promise<void> => {
+  const confirm = useCallback(async (pastedUrl: string): Promise<boolean> => {
     setBusy(true)
     setError(null)
     try {
       await completeLogin(pastedUrl)
       setLoggedIn(loadTokens() != null)
+      return true
     } catch (err) {
       setError(errorMessage(err))
+      return false
     } finally {
       setBusy(false)
     }

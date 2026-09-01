@@ -38,49 +38,68 @@ describe('useTeslaAuth', () => {
     expect(result.current.error).toBeNull()
   })
 
-  it('start() calls startLogin and clears error state', async () => {
+  it('start() calls startLogin, resolves true and clears error state', async () => {
     mockStart.mockResolvedValueOnce(undefined)
     const { result } = renderHook(() => useTeslaAuth())
+    let ok: boolean | undefined
     await act(async () => {
-      await result.current.start()
+      ok = await result.current.start()
     })
     expect(mockStart).toHaveBeenCalledTimes(1)
+    expect(ok).toBe(true)
     expect(result.current.error).toBeNull()
   })
 
-  it('confirm() with a valid URL calls completeLogin and flips loggedIn', async () => {
+  it('start() resolves false when startLogin fails', async () => {
+    mockStart.mockRejectedValueOnce(new Error('pkce mint failed: HTTP 500'))
+    const { result } = renderHook(() => useTeslaAuth())
+    let ok: boolean | undefined
+    await act(async () => {
+      ok = await result.current.start()
+    })
+    expect(ok).toBe(false)
+    expect(result.current.error).toMatch(/pkce mint failed/)
+  })
+
+  it('confirm() with a valid URL calls completeLogin, resolves true and flips loggedIn', async () => {
     mockLoad.mockReturnValueOnce(null).mockReturnValue(tokens)
     mockComplete.mockResolvedValueOnce(undefined)
     const { result } = renderHook(() => useTeslaAuth())
     expect(result.current.loggedIn).toBe(false)
+    let ok: boolean | undefined
     await act(async () => {
-      await result.current.confirm(CALLBACK_URL)
+      ok = await result.current.confirm(CALLBACK_URL)
     })
     expect(mockComplete).toHaveBeenCalledWith(CALLBACK_URL)
+    expect(ok).toBe(true)
     expect(result.current.loggedIn).toBe(true)
     expect(result.current.error).toBeNull()
     expect(result.current.busy).toBe(false)
   })
 
-  it('confirm() with a garbage URL sets an error and stays logged out', async () => {
+  it('confirm() with a garbage URL sets an error, resolves false and stays logged out', async () => {
     mockComplete.mockRejectedValueOnce(new Error('No authorization code in pasted URL'))
     const { result } = renderHook(() => useTeslaAuth())
+    let ok: boolean | undefined
     await act(async () => {
-      await result.current.confirm('not a url')
+      ok = await result.current.confirm('not a url')
     })
+    expect(ok).toBe(false)
     expect(result.current.loggedIn).toBe(false)
     expect(result.current.error).toMatch(/authorization code/i)
     expect(result.current.busy).toBe(false)
   })
 
-  it('surfaces the state-mismatch message from completeLogin', async () => {
+  it('surfaces the state-mismatch message from completeLogin and resolves false', async () => {
     mockComplete.mockRejectedValueOnce(
       new Error('State mismatch — paste the URL from the same login attempt'),
     )
     const { result } = renderHook(() => useTeslaAuth())
+    let ok: boolean | undefined
     await act(async () => {
-      await result.current.confirm('https://dashcam.tesla.com/callback?code=abc&state=wrong')
+      ok = await result.current.confirm('https://dashcam.tesla.com/callback?code=abc&state=wrong')
     })
+    expect(ok).toBe(false)
     expect(result.current.loggedIn).toBe(false)
     expect(result.current.error).toMatch(/State mismatch/)
   })
