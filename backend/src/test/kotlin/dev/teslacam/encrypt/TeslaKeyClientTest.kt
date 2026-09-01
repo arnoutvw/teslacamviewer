@@ -94,4 +94,14 @@ class TeslaKeyClientTest {
         server.expect(requestTo(TeslaKeyClient.BATCH_URL)).andRespond(withServerError())
         assertThrows(ApiError::class.java) { client.fetchKeys(listOf(item("a")), "tok") }
     }
+
+    @Test
+    fun `malformed success body maps to ApiError not raw parse exception`() {
+        val (client, server) = client()
+        server.expect(requestTo(TeslaKeyClient.BATCH_URL)).andRespond(
+            withSuccess("{not json", MediaType.APPLICATION_JSON))
+        val e = assertThrows(ApiError::class.java) { client.fetchKeys(listOf(item("a")), "tok") }
+        assertEquals(200, e.status)
+        assertTrue(e.message!!.contains("unparseable response body"))
+    }
 }

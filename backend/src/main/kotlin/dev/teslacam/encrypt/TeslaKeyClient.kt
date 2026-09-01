@@ -66,7 +66,9 @@ class TeslaKeyClient(builder: RestClient.Builder) {
             throw NetworkError(e.message ?: "network failure")
         }
         if (raw == null) throw ApiError(200, "empty response body")
-        return normalizeResults(raw)
+        // A malformed body must surface as ApiError, not escape as a raw Jackson exception.
+        return runCatching { normalizeResults(raw) }
+            .getOrElse { throw ApiError(200, "unparseable response body") }
     }
 
     /** Accepts {"results":[{id,key}]} | [{id,key}] | {"<id>":"<key>"}; drops empty keys. */
