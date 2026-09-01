@@ -1,5 +1,6 @@
 package dev.teslacam.scanner
 
+import dev.teslacam.encrypt.EncryptionDetector
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import java.nio.file.Files
@@ -14,6 +15,7 @@ data class EventSummary(
     val cameraName: String?,
     val segmentCount: Int,
     val playable: Boolean,
+    val encrypted: Boolean,
 )
 
 data class SegmentInfo(
@@ -22,6 +24,8 @@ data class SegmentInfo(
     val url: String,
     val playable: Boolean,
     val estimatedSeconds: Double,
+    val encrypted: Boolean,
+    val keyItem: dev.teslacam.encrypt.KeyItem?,
 )
 
 data class TimelineInfo(val start: LocalDateTime, val end: LocalDateTime)
@@ -36,6 +40,7 @@ data class EventDetail(
 class EventScanner(
     @Value("\${teslacam.root}") private val root: String,
     private val cameras: CameraConfig,
+    private val detector: EncryptionDetector,
 ) {
     companion object {
         val CATEGORIES = listOf("RecentClips", "SavedClips", "SentryClips")
@@ -81,6 +86,7 @@ class EventScanner(
             cameraName = effective?.cameraIndex?.let { cameras.cameraName(it) },
             segmentCount = segments.size,
             playable = segments.any { it.bytes > 0 },
+            encrypted = segments.any { detector.headerFor(it.file) != null },
         )
     }
 
@@ -103,6 +109,7 @@ class EventScanner(
             .groupBy { it.camera }
             .mapValues { (_, list) ->
                 list.sortedBy { it.start }.map { seg ->
+                    val header = detector.headerFor(seg.file)
                     SegmentInfo(
                         camera = seg.camera,
                         start = seg.start,
@@ -110,7 +117,22 @@ class EventScanner(
                         playable = seg.bytes > 0,
                         // Prefer the real mp4 duration; the size-based estimate has
                         // proven ~2x off for Tesla's smaller-camera bitrates.
-                        estimatedSeconds = maxOf(1.0, seg.durationSeconds ?: seg.bytes / BYTES_PER_SECOND),
+                        // Encrypted files keep moov encrypted -> the mvhd tail parse is
+                        // garbage; fall back to the size estimate minus the 8 KiB header.
+                        estimatedSeconds = if (header != null) maxOf(1.0, (seg.bytes - 8192) / BYTES_PER_SECOND)
+                                           else maxOf(1.0, seg.durationSeconds ?: seg.bytes / BYTES_PER_SECOND),
+                        encrypted = header != null,
+                        keyItem = header?.let {
+                            dev.teslacam.encrypt.KeyItem(
+                                id = Path.of(root).toAbsolutePath().normalize()
+                                    .relativize(seg.file.toAbsolutePath().normalize()).toString().replace('\\', '/'),
+                                vin = it.vin,
+                                keyId = it.keyId,
+                                timestamp = it.timestamp,
+                                wrappedKey = it.wrappedKeyB64,
+                                publicKey = it.publicKeyB64,
+                            )
+                        },
                     )
                 }
             }

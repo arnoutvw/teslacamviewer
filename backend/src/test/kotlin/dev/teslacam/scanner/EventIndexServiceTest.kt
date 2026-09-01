@@ -13,7 +13,7 @@ class EventIndexServiceTest {
     private val sample = EventSummary(
         category = "SentryClips", folder = "2026-07-10_17-21-39",
         folderTimestamp = LocalDateTime.of(2026, 7, 10, 17, 21, 39),
-        metadata = null, cameraName = null, segmentCount = 6, playable = true,
+        metadata = null, cameraName = null, segmentCount = 6, playable = true, encrypted = false,
     )
 
     @Test

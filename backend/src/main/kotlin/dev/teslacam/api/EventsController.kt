@@ -14,6 +14,7 @@ data class EventSummaryDto(
     val lat: Double?, val lon: Double?,
     val camera: String?, val cameraIndex: Int?,
     val segmentCount: Int, val playable: Boolean,
+    val encrypted: Boolean,
 )
 
 @RestController
@@ -58,5 +59,6 @@ class EventsController(private val index: EventIndexService) {
         cameraIndex = metadata?.cameraIndex,
         segmentCount = segmentCount,
         playable = playable,
+        encrypted = encrypted,
     )
 }

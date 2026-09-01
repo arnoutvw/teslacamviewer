@@ -13,6 +13,7 @@ class WebConfig {
             registry.addMapping("/api/**")
                 .allowedOrigins("http://localhost:5173")
                 .allowedMethods("GET", "POST")
+                .allowedHeaders("Authorization", "Content-Type")
             registry.addMapping("/media/**")
                 .allowedOrigins("http://localhost:5173")
                 .allowedMethods("GET")

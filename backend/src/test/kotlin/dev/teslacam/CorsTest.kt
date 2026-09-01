@@ -21,4 +21,24 @@ class CorsTest(@Autowired val ctx: WebApplicationContext) {
             .andExpect(status().isOk)
             .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
     }
+
+    @Test
+    fun `preflight allows Authorization and Content-Type headers`() {
+        val mvc = MockMvcBuilders.webAppContextSetup(ctx).build()
+        mvc.perform(options("/api/keys/fetch")
+                .header("Origin", "http://localhost:5173")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "Authorization, Content-Type"))
+            .andExpect(status().isOk)
+    }
+
+    @Test
+    fun `preflight rejects headers outside the allow-list`() {
+        val mvc = MockMvcBuilders.webAppContextSetup(ctx).build()
+        mvc.perform(options("/api/keys/fetch")
+                .header("Origin", "http://localhost:5173")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "X-Custom-Header"))
+            .andExpect(status().isForbidden)
+    }
 }

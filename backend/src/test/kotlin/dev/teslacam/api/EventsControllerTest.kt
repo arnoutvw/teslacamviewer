@@ -29,7 +29,7 @@ class EventsControllerTest {
             lat = 51.3352, lon = 6.35791,
             reason = "sentry_aware_object_detection", cameraIndex = 5,
         ),
-        cameraName = "right_pillar", segmentCount = 12, playable = true,
+        cameraName = "right_pillar", segmentCount = 12, playable = true, encrypted = true,
     )
 
     @TestConfiguration
@@ -56,6 +56,7 @@ class EventsControllerTest {
             .andExpect(jsonPath("$[0].city").value("Grefrath"))
             .andExpect(jsonPath("$[0].camera").value("right_pillar"))
             .andExpect(jsonPath("$[0].timestamp").value("2026-07-10T17:20:19"))
+            .andExpect(jsonPath("$[0].encrypted").value(true))
     }
 
     @Test
@@ -73,7 +74,8 @@ class EventsControllerTest {
     @Test
     fun `detail returns timeline and segments`() {
         val seg = SegmentInfo("front", LocalDateTime.of(2026, 7, 10, 17, 19, 23),
-            "/media/SentryClips/2026-07-10_17-21-39/2026-07-10_17-19-23-front.mp4", true, 60.0)
+            "/media/SentryClips/2026-07-10_17-21-39/2026-07-10_17-19-23-front.mp4", true, 60.0,
+            encrypted = true, keyItem = null)
         every { service.detail("SentryClips", "2026-07-10_17-21-39") } returns EventDetail(
             summary = sample,
             segmentsByCamera = mapOf("front" to listOf(seg), "back" to emptyList()),

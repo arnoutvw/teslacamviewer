@@ -1,11 +1,13 @@
 package dev.teslacam.scanner
 
+import dev.teslacam.encrypt.TestClips
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Base64
 
 class EventScannerTest {
     @TempDir
@@ -19,7 +21,7 @@ class EventScannerTest {
         root = tmp.resolve("dashcam"); Files.createDirectories(root)
     }
 
-    private fun scanner() = EventScanner(root.toString(), cameras)
+    private fun scanner() = EventScanner(root.toString(), cameras, dev.teslacam.encrypt.EncryptionDetector())
 
     private fun segment(category: String, folder: String, fileName: String, bytes: Long = 100_000) {
         val dir = root.resolve(category).resolve(folder); Files.createDirectories(dir)
@@ -87,7 +89,7 @@ class EventScannerTest {
 
     @Test
     fun `missing root yields empty index`() {
-        val s = EventScanner(tmp.resolve("does-not-exist").toString(), cameras)
+        val s = EventScanner(tmp.resolve("does-not-exist").toString(), cameras, dev.teslacam.encrypt.EncryptionDetector())
         assertTrue(s.scan().isEmpty())
     }
 
@@ -161,4 +163,53 @@ class EventScannerTest {
     private fun EventSummary.city() = metadata?.city
     private fun EventSummary.street() = metadata?.street
     private fun EventSummary.reason() = metadata?.reason
+
+    // --- Task 7: encrypted flags + key items ---
+
+    @Test
+    fun `plain clips report encrypted false and null keyItem`() {
+        segment("SentryClips", "2026-07-10_17-21-39", "2026-07-10_17-19-23-front.mp4")
+        val d = scanner().detail("SentryClips", "2026-07-10_17-21-39")!!
+        assertFalse(d.summary.encrypted)
+        val seg = d.segmentsByCamera["front"]!![0]
+        assertFalse(seg.encrypted)
+        assertNull(seg.keyItem)
+    }
+
+    @Test
+    fun `encrypted clip exposes keyItem with root-relative id`() {
+        val dir = root.resolve("SentryClips").resolve("2026-07-10_17-21-39")
+        Files.createDirectories(dir)
+        TestClips.buildEncrypted(dir, "2026-07-10_17-19-23-front.mp4", ByteArray(4096))
+        val d = scanner().detail("SentryClips", "2026-07-10_17-21-39")!!
+        assertTrue(d.summary.encrypted)
+        val seg = d.segmentsByCamera["front"]!![0]
+        assertTrue(seg.encrypted)
+        val key = seg.keyItem!!
+        assertEquals("SentryClips/2026-07-10_17-21-39/2026-07-10_17-19-23-front.mp4", key.id)
+        assertEquals("LRW3E7EK5MC000000", key.vin)
+        assertEquals(7L, key.keyId)
+        assertEquals(1_700_000_000_000, key.timestamp)
+        assertEquals(Base64.getEncoder().encodeToString(TestClips.wrappedKeyBlob()), key.wrappedKey)
+        assertEquals(Base64.getEncoder().encodeToString(TestClips.publicKeyBlob()), key.publicKey)
+        assertEquals("LRW3E7EK5MC000000:7:1700000000000", key.storeKey)
+    }
+
+    @Test
+    fun `encrypted segment seconds estimated from size not mvhd`() {
+        val dir = root.resolve("SentryClips").resolve("2026-07-10_17-21-39")
+        Files.createDirectories(dir)
+        // 3_000_000 plaintext bytes -> 733 pages -> file = 8192 + 3002368 bytes.
+        TestClips.buildEncrypted(dir, "2026-07-10_17-19-23-front.mp4", ByteArray(3_000_000))
+        val seg = scanner().detail("SentryClips", "2026-07-10_17-21-39")!!.segmentsByCamera["front"]!![0]
+        assertEquals(3002368.0 / 1_400_000.0, seg.estimatedSeconds, 1e-9)
+    }
+
+    @Test
+    fun `summary encrypted when any segment is encrypted`() {
+        segment("SentryClips", "2026-07-10_17-21-39", "2026-07-10_17-19-23-front.mp4")
+        val dir = root.resolve("SentryClips").resolve("2026-07-10_17-21-39")
+        TestClips.buildEncrypted(dir, "2026-07-10_17-19-23-back.mp4", ByteArray(4096))
+        assertTrue(scanner().scan()["SentryClips"]!![0].encrypted)
+    }
 }
