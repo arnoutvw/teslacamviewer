@@ -107,11 +107,19 @@ export async function refreshTokens(): Promise<TeslaTokens | null> {
   return fresh
 }
 
+// In-flight refresh dedupe: concurrent callers (React StrictMode double-invoke,
+// multiple components/tabs) must share one refresh call. Tesla rotates refresh
+// tokens, so parallel refreshes lose the race and spuriously log the user out.
+let refreshInFlight: Promise<TeslaTokens | null> | null = null
+
 export async function getValidAccessToken(): Promise<string | null> {
   const tokens = loadTokens()
   if (tokens == null) return null
   if (Date.now() < tokens.expiresAt) return tokens.accessToken
-  const fresh = await refreshTokens()
+  refreshInFlight ??= refreshTokens().finally(() => {
+    refreshInFlight = null
+  })
+  const fresh = await refreshInFlight
   return fresh?.accessToken ?? null
 }
 

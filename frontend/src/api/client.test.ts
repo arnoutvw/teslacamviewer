@@ -3,6 +3,7 @@ import {
   clearTokens,
   fetchKeys,
   getEventDetail,
+  getValidAccessToken,
   listEvents,
   loadTokens,
   refreshTokens,
@@ -100,6 +101,25 @@ describe('refreshTokens', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('bad gateway', { status: 502 })))
     await expect(refreshTokens()).rejects.toThrow('HTTP 502')
     expect(loadTokens()).toEqual(tokens)
+  })
+})
+
+describe('getValidAccessToken', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('dedupes concurrent refreshes into a single /api/tesla/refresh call', async () => {
+    saveTokens({ accessToken: 'stale', refreshToken: 'rt', expiresAt: Date.now() - 1000 })
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ accessToken: 'at2', refreshToken: 'rt2', expiresAt: Date.now() + 60_000 }),
+        { status: 200 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const [a, b] = await Promise.all([getValidAccessToken(), getValidAccessToken()])
+    expect(a).toBe('at2')
+    expect(b).toBe('at2')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
 
