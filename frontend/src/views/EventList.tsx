@@ -16,6 +16,7 @@ import BrokenImageIcon from '@mui/icons-material/BrokenImage'
 import VideocamIcon from '@mui/icons-material/Videocam'
 import LoginIcon from '@mui/icons-material/Login'
 import KeyIcon from '@mui/icons-material/Key'
+import LockIcon from '@mui/icons-material/Lock'
 import LogoutIcon from '@mui/icons-material/Logout'
 import { CATEGORIES, listEvents, type Category, type EventSummaryDto } from '../api/client'
 import { humanizeReason } from '../reason'
@@ -131,6 +132,7 @@ export default function EventList({ onOpen }: { onOpen: (category: Category, fol
             />
             {humanizeReason(e.reason) != null && <Chip size="small" label={humanizeReason(e.reason)} />}
             {e.camera != null && <Chip size="small" icon={<VideocamIcon />} label={e.camera} />}
+            {e.encrypted && <Chip size="small" icon={<LockIcon />} label="encrypted" />}
           </ListItemButton>
         ))}
         {events != null && events.length === 0 && (

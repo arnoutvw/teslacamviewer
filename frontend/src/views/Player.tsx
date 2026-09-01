@@ -8,6 +8,7 @@ import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { getEventDetail, type Category, type EventDetailDto } from '../api/client'
+import EncryptionGate from '../tesla/EncryptionGate'
 import CameraGrid from '../player/CameraGrid'
 import { Controls } from '../player/Controls'
 import { usePlayback } from '../player/usePlayback'
@@ -69,16 +70,18 @@ export default function Player({ category, folder, onBack }: { category: Categor
         </Toolbar>
       </AppBar>
       <Box sx={{ flex: 1, minHeight: 0 }}>
-        <CameraGrid
-          assignments={pb.assignments}
-          seeking={pb.seeking}
-          eventCamera={detail.summary.camera}
-          swapped={swapped}
-          zoomed={zoomed}
-          onSwap={(cam) => setSwapped((s) => (s === cam ? null : cam))}
-          onZoom={(cam) => setZoomed((z) => (z === cam ? null : cam))}
-          bindCamera={pb.bindCamera}
-        />
+        <EncryptionGate detail={detail}>
+          <CameraGrid
+            assignments={pb.assignments}
+            seeking={pb.seeking}
+            eventCamera={detail.summary.camera}
+            swapped={swapped}
+            zoomed={zoomed}
+            onSwap={(cam) => setSwapped((s) => (s === cam ? null : cam))}
+            onZoom={(cam) => setZoomed((z) => (z === cam ? null : cam))}
+            bindCamera={pb.bindCamera}
+          />
+        </EncryptionGate>
       </Box>
       <Controls
         playing={pb.playing}

@@ -92,6 +92,16 @@ describe('EventList', () => {
     expect(mockList).toHaveBeenCalledTimes(2)
   })
 
+  it('shows a lock chip only on encrypted events', async () => {
+    mockList.mockResolvedValue([
+      { ...event, folder: 'enc', encrypted: true },
+      { ...event, folder: 'plain', encrypted: false },
+    ])
+    renderView(<EventList onOpen={vi.fn()} />)
+    await waitFor(() => expect(screen.getAllByText('2026-07-10 17:20:19')).toHaveLength(2))
+    expect(screen.getByText('encrypted')).toBeInTheDocument()
+  })
+
   it('shows the Tesla login button when logged out and opens the dialog on click', async () => {
     const user = userEvent.setup()
     renderView(<EventList onOpen={vi.fn()} />)

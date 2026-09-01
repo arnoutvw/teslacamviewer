@@ -6,6 +6,12 @@ import type { EventDetailDto } from '../api/client'
 
 vi.mock('../api/client', () => ({
   getEventDetail: vi.fn(),
+  fetchKeys: vi.fn(),
+  getValidAccessToken: vi.fn(),
+  loadTokens: vi.fn(() => null),
+  clearTokens: vi.fn(),
+  exchangeCode: vi.fn(),
+  saveTokens: vi.fn(),
 }))
 
 import { getEventDetail } from '../api/client'

@@ -77,10 +77,27 @@ docker run --rm -p 8080:8080 -v /path/to/tesla-files:/data:ro \
 The container serves everything itself: UI + API + media from one port. Dashcam
 files are read-only.
 
+## Encrypted clips
+
+Firmware 2026.20+ can encrypt Dashcam/Sentry clips. To play them:
+
+1. Click **Tesla** in the header and log in with your Tesla account (popup).
+2. Tesla redirects to a page that will not load — copy the full URL from the
+   browser address bar and paste it back into the dialog.
+3. Open an encrypted event (marked with a lock icon). Keys are fetched from
+   your Tesla account automatically and cached server-side in
+   `.teslacam_keys.json` next to your footage.
+
+Caveats:
+- The Tesla token lives in your browser's localStorage; log out clears it.
+- Key requests to Tesla may occasionally be blocked (HTTP 403, Akamai). Retry
+  later if that happens.
+- Decryption happens on the fly; unencrypted clips are unaffected.
+
 ## Tests
 
 ```bash
-cd frontend && npm test -- --run      # vitest + testing-library (49 tests)
+cd frontend && npm test -- --run      # vitest + testing-library (85 tests)
 cd backend && ./gradlew test          # JUnit 5 scanner/API tests
 ```
 
