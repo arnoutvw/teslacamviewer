@@ -10,6 +10,8 @@ import type { EventSummaryDto } from '../api/client'
 vi.mock('../api/client', () => ({
   CATEGORIES: ['RecentClips', 'SavedClips', 'SentryClips'] as const,
   listEvents: vi.fn(),
+  loadTokens: vi.fn(() => null),
+  clearTokens: vi.fn(),
 }))
 
 import { listEvents } from '../api/client'
@@ -88,5 +90,15 @@ describe('EventList', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(screen.getByText('2026-07-10 17:20:19')).toBeInTheDocument())
     expect(mockList).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows the Tesla login button when logged out and opens the dialog on click', async () => {
+    const user = userEvent.setup()
+    renderView(<EventList onOpen={vi.fn()} />)
+    const loginButton = screen.getByRole('button', { name: /tesla/i })
+    expect(loginButton).toBeInTheDocument()
+    await user.click(loginButton)
+    expect(await screen.findByText('Tesla account')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /login with tesla/i })).toBeInTheDocument()
   })
 })

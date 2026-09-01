@@ -7,6 +7,8 @@ import { theme } from './theme'
 vi.mock('./api/client', () => ({
   CATEGORIES: ['RecentClips', 'SavedClips', 'SentryClips'] as const,
   listEvents: vi.fn().mockResolvedValue([]),
+  loadTokens: vi.fn(() => null),
+  clearTokens: vi.fn(),
 }))
 
 describe('App', () => {

@@ -14,8 +14,13 @@ import Chip from '@mui/material/Chip'
 import Button from '@mui/material/Button'
 import BrokenImageIcon from '@mui/icons-material/BrokenImage'
 import VideocamIcon from '@mui/icons-material/Videocam'
+import LoginIcon from '@mui/icons-material/Login'
+import KeyIcon from '@mui/icons-material/Key'
+import LogoutIcon from '@mui/icons-material/Logout'
 import { CATEGORIES, listEvents, type Category, type EventSummaryDto } from '../api/client'
 import { humanizeReason } from '../reason'
+import { useTeslaAuth } from '../tesla/useTeslaAuth'
+import TeslaLoginDialog from '../tesla/TeslaLoginDialog'
 
 const TAB_LABELS: Record<Category, string> = {
   RecentClips: 'Recent',
@@ -53,6 +58,8 @@ export default function EventList({ onOpen }: { onOpen: (category: Category, fol
   const [refreshTick, setRefreshTick] = useState(0)
   const [events, setEvents] = useState<EventSummaryDto[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const auth = useTeslaAuth()
+  const [loginOpen, setLoginOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -86,8 +93,25 @@ export default function EventList({ onOpen }: { onOpen: (category: Category, fol
               <Tab key={c} value={c} label={TAB_LABELS[c]} />
             ))}
           </Tabs>
+          <Box sx={{ ml: 'auto' }}>
+            {auth.loggedIn ? (
+              <Chip
+                color="secondary"
+                icon={<KeyIcon />}
+                label="Tesla"
+                deleteIcon={<LogoutIcon />}
+                onDelete={auth.logout}
+                onClick={() => setLoginOpen(true)}
+              />
+            ) : (
+              <Button color="inherit" startIcon={<LoginIcon />} onClick={() => setLoginOpen(true)}>
+                Tesla
+              </Button>
+            )}
+          </Box>
         </Toolbar>
       </AppBar>
+      <TeslaLoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} auth={auth} />
       <List>
         {events?.map((e) => (
           <ListItemButton
